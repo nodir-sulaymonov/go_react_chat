@@ -13,87 +13,98 @@ import (
 )
 
 type User struct {
-	ID 		 int 	`json:"id"`
+	ID       int    `json:"id"`
 	Username string `json:"username"`
 	Password string `json:"password"`
 }
 
 type Channel struct {
-	ID 		 int 	`json:"id"`
+	ID   int    `json:"id"`
 	Name string `json:"name"`
 }
 
 type Message struct {
-	ID 		  int 	 `json:"id"`
-	ChannelID int 	 `json:"channel_id"`
-	UserID	  int 	 `json:"user_id"`
+	ID        int    `json:"id"`
+	ChannelID int    `json:"channel_id"`
+	UserID    int    `json:"user_id"`
 	UserName  string `json:"user_name"`
-	Text  	  string `json:"text"`
+	Text      string `json:"text"`
 }
 
-func main()  {
+func main() {
+	// Get the working directory
 	wd, err := os.Getwd()
 	if err != nil {
 		log.Fatal(err)
 	}
-
+	// Print the working directory
 	fmt.Println("Working directory:", wd)
 
-	//Open the SQLite database file
-
+	// Open the SQLite database file
 	db, err := sql.Open("sqlite", wd+"/database.db")
 
-	defer func (db *sql.DB) {
+	defer func(db *sql.DB) {
 		err := db.Close()
 		if err != nil {
 			log.Fatal(err)
 		}
 	}(db)
 
+	// Create the Gin router
 	r := gin.Default()
 
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	r.POST("/users", func(ctx *gin.Context) { createUser(ctx, db) })
-	r.POST("/channels", func(ctx *gin.Context) { createChannel(ctx, db) })
-	r.POST("/messages", func(ctx *gin.Context) { createMessage(ctx, db) })
+	// Creation endpoints
+	r.POST("/users", func(c *gin.Context) { createUser(c, db) })
+	r.POST("/channels", func(c *gin.Context) { createChannel(c, db) })
+	r.POST("/messages", func(c *gin.Context) { createMessage(c, db) })
 
-	r.GET("/channels", func(ctx *gin.Context) { listChannels(ctx, db) })
-	r.GET("/message", func(ctx *gin.Context) { listMessages(ctx, db) })
+	// Listing endpoints
+	r.GET("/channels", func(c *gin.Context) { listChannels(c, db) })
+	r.GET("/messages", func(c *gin.Context) { listMessages(c, db) })
 
-	r.POST("/login", func(ctx *gin.Context) { login(ctx, db) })
+	// Login endpoint
+	r.POST("/login", func(c *gin.Context) { login(c, db) })
 
-	err = r.Run(":8080")
-
+    err = r.Run(":8080")
 	if err != nil {
 		log.Fatal(err)
 	}
 }
 
-func createUser(ctx *gin.Context, db *sql.DB) {
+// User creation endpoint
+func createUser(c *gin.Context, db *sql.DB) {
+	// Parse JSON request body into User struct
 	var user User
-
-	if err := ctx.ShouldBindJSON(&user); err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	if err := c.ShouldBindJSON(&user); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
+	fmt.Println("user.Username", user.Username)
+	// Insert user into database
 	result, err := db.Exec("INSERT INTO users (username, password) VALUES (?, ?)", user.Username, user.Password)
+	fmt.Println("result", result)
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
+	// Get ID of newly inserted user
 	id, err := result.LastInsertId()
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
 	}
 
-	ctx.JSON(http.StatusOK, gin.H{"id": id})
+	// Return ID of newly inserted user
+	c.JSON(http.StatusOK, gin.H{"id": id})
 }
 
+// Login endpoint
 func login(c *gin.Context, db *sql.DB) {
 	// Parse JSON request body into User struct
 	var user User
@@ -122,6 +133,7 @@ func login(c *gin.Context, db *sql.DB) {
 	c.JSON(http.StatusOK, gin.H{"id": id})
 }
 
+// Channel creation endpoint
 func createChannel(c *gin.Context, db *sql.DB) {
 	// Parse JSON request body into Channel struct
 	var channel Channel
@@ -148,6 +160,7 @@ func createChannel(c *gin.Context, db *sql.DB) {
 	c.JSON(http.StatusOK, gin.H{"id": id})
 }
 
+// Channel listing endpoint
 func listChannels(c *gin.Context, db *sql.DB) {
 	// Query database for channels
 	rows, err := db.Query("SELECT id, name FROM channels")
@@ -179,6 +192,7 @@ func listChannels(c *gin.Context, db *sql.DB) {
 	c.JSON(http.StatusOK, channels)
 }
 
+// Message creation endpoint
 func createMessage(c *gin.Context, db *sql.DB) {
 	// Parse JSON request body into Message struct
 	var message Message
@@ -205,6 +219,7 @@ func createMessage(c *gin.Context, db *sql.DB) {
 	c.JSON(http.StatusOK, gin.H{"id": id})
 }
 
+// Message listing endpoint
 func listMessages(c *gin.Context, db *sql.DB) {
 	// Parse channel ID from URL
 	channelID, err := strconv.Atoi(c.Query("channelID"))
